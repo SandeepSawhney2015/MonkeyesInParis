@@ -2,87 +2,104 @@ import cv2
 import os
 import time
 
-# Directory to save photos
-SAVE_DIR = "dataset"
-os.makedirs(SAVE_DIR, exist_ok=True)
+# Settings
+BURST_SIZE = 300
+DELAY_BETWEEN_SHOTS = 0.2  # seconds
 
-# Webcam
-cap = cv2.VideoCapture(0)
+# Create folder structure
+def ensure_dirs():
+    for pose in range(1, 5):
+        pose_dir = f"pose{pose}"
+        if not os.path.exists(pose_dir):
+            os.makedirs(pose_dir)
+        for person in range(1, 10):  # allow up to 9 people if needed
+            person_dir = os.path.join(pose_dir, f"person{person}")
+            if not os.path.exists(person_dir):
+                os.makedirs(person_dir)
 
-current_pose = None        # Pose number (1–4)
-burst_active = False       # Whether we're currently capturing
-burst_number = 1           # Burst index per pose
-photo_count = 0            # Count within current burst
+ensure_dirs()
 
-BURST_SIZE = 300           # Number of photos per burst
-DELAY = 0.2                # Seconds between photos
+def get_next_image_number(folder):
+    existing = [int(f.split(".")[0]) for f in os.listdir(folder) if f.endswith(".jpg")]
+    return max(existing) + 1 if existing else 1
 
-print("=================================================")
-print("Controls:")
-print("   1 = Select Pose 1")
-print("   2 = Select Pose 2")
-print("   3 = Select Pose 3")
-print("   4 = Select Pose 4")
-print("   SPACE = Start/Stop a burst of 300 photos")
-print("   Q = Quit")
-print("=================================================")
+def run_camera():
+    cap = cv2.VideoCapture(0)
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+    current_pose = None
+    person_number = 1
 
-    # Display pose info on video
-    display_text = f"Pose: {current_pose if current_pose else 'None'}"
-    if burst_active:
-        display_text += f" | Capturing {photo_count}/{BURST_SIZE}"
-    cv2.putText(frame, display_text, (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    print("\n=== CONTROLS ===")
+    print("Press 1–4 to select pose.")
+    print("Press SPACE to start a 300-image burst.")
+    print("Press ESC to quit.\n")
 
-    cv2.imshow("Capture", frame)
-    key = cv2.waitKey(1) & 0xFF
-
-    # --- Pose selection ---
-    if key in [ord('1'), ord('2'), ord('3'), ord('4')]:
-        current_pose = int(chr(key))
-        burst_number = 1  # reset burst count for the pose
-        print(f"\n>>> Selected Pose {current_pose}")
-
-    # --- Start/Stop burst ---
-    if key == ord(" "):
-        if current_pose is None:
-            print("!!! Select a pose first (1–4).")
+    while True:
+        ret, frame = cap.read()
+        if not ret:
             continue
 
-        burst_active = not burst_active
-        if burst_active:
-            print(f"\n>>> Starting burst {burst_number} for Pose {current_pose}...")
-            photo_count = 0
-        else:
-            print(f">>> Stopping burst {burst_number} for Pose {current_pose}.")
-            burst_number += 1
+        # Display window
+        cv2.putText(frame, f"Pose: {current_pose if current_pose else '-'} | Person: {person_number}",
+                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.imshow("Dataset Collector", frame)
 
-    # Quit
-    if key == ord("q"):
-        print("\nExiting...")
-        break
+        key = cv2.waitKey(1)
 
-    # --- Capture photos ---
-    if burst_active and photo_count < BURST_SIZE:
-        filename = (
-            f"pose_{current_pose}_burst_{burst_number}_img_{photo_count:03d}.jpg"
-        )
-        filepath = os.path.join(SAVE_DIR, filename)
-        cv2.imwrite(filepath, frame)
-        photo_count += 1
+        # ======================
+        # POSE SELECTION (1–4)
+        # ======================
+        if key in [ord("1"), ord("2"), ord("3"), ord("4")]:
+            current_pose = int(chr(key))
+            print(f"\nSelected Pose {current_pose}")
+            print("Press SPACE to start capturing...")
+            time.sleep(0.2)
 
-        # Delay of 0.2 seconds between captures
-        time.sleep(DELAY)
+        # Quit with ESC
+        if key == 27:
+            print("Exiting...")
+            break
 
-        if photo_count == BURST_SIZE:
-            print(f">>> Burst {burst_number} for Pose {current_pose} complete ({BURST_SIZE} photos).")
-            burst_active = False
-            burst_number += 1
+        # No pose selected yet
+        if current_pose is None:
+            continue
 
-cap.release()
-cv2.destroyAllWindows()
+        # ======================
+        # SPACE → START BURST
+        # ======================
+        if key == 32:  # space bar
+            pose_folder = f"pose{current_pose}"
+            person_folder = os.path.join(pose_folder, f"person{person_number}")
+
+            print(f"\nStarting burst of {BURST_SIZE} photos for Pose {current_pose}, Person {person_number}")
+
+            img_number = get_next_image_number(person_folder)
+
+            for i in range(BURST_SIZE):
+                ret, frame = cap.read()
+                if not ret:
+                    continue
+
+                filename = os.path.join(person_folder, f"{img_number}.jpg")
+                cv2.imwrite(filename, frame)
+                img_number += 1
+
+                cv2.putText(frame, f"Capturing {i+1}/{BURST_SIZE}", (10, 70),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.imshow("Dataset Collector", frame)
+
+                if cv2.waitKey(1) == 27:  # ESC during burst
+                    print("Burst interrupted by ESC. Exiting...")
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    return
+
+                time.sleep(DELAY_BETWEEN_SHOTS)
+
+            print(f"Burst complete! {BURST_SIZE} images saved.")
+            print("Press SPACE again for another 300, or ESC to exit.\n")
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+run_camera()
