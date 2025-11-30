@@ -9,10 +9,10 @@ The model is using a mediapipe system to create nodes to recognize certain poses
 Contributors:
 
 ![](READMEIMAGES/vewwqeyihbaf1.jpeg)
-![](READMEIMAGES\pose1Example.jpg)
+![](READMEIMAGES/pose1Example.jpg)
 ![](READMEIMAGES/speedINeedThis.jpg)
-![](READMEIMAGES\pose2Example.jpg)
+![](READMEIMAGES/pose2Example.jpg)
 ![](READMEIMAGES/monkeyAHHHH.png)
-![](READMEIMAGES\pose3Example.jpg)
+![](READMEIMAGES/pose3Example.jpg)
 ![](READMEIMAGES/monkeyAhHa.png)
-![](READMEIMAGES\pose4Example.jpg)
+![](READMEIMAGES/pose4Example.jpg)
