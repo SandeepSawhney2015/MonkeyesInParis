@@ -6,7 +6,7 @@ import time
 # CHANGE THESE FOR EACH PERSON + POSE
 pose_name = "pose1"      # e.g. "pose1", "pose2", "pose3", "pose4"
 person = "person1"       # e.g. "person1", "person2", "person3", "person4"
-max_photos = 300         # how many images per session
+max_photos = 300         # images per session
 delay = 0.2              # seconds between saves (0.2s = 5 photos/sec)
 # -----------------------------------------
 
