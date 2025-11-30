@@ -8,11 +8,7 @@ The model is using a mediapipe system to create nodes to recognize certain poses
 
 Contributors:
 
-**Pose 1**
 ![](READMEIMAGES/vewwqeyihbaf1.jpeg)
-**Pose 2**
 ![](READMEIMAGES/speedINeedThis.jpg)
-**Pose 3**
 ![](READMEIMAGES/monkeyAHHHH.png)
-**Pose 4**
 ![](READMEIMAGES/monkeyAhHa.png)
