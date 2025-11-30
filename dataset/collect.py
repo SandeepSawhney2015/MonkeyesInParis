@@ -21,15 +21,15 @@ def get_next_index(folder, pose_name):
     if not files:
         return 1
 
-    numbers = []
+    nums = []
     for f in files:
         try:
             num = int(f.replace(pose_name + "_", "").replace(".jpg", ""))
-            numbers.append(num)
+            nums.append(num)
         except:
             pass
 
-    return max(numbers) + 1 if numbers else 1
+    return max(nums) + 1 if nums else 1
 
 
 # ---------------------------------------------
@@ -60,9 +60,9 @@ def collect_for_pose(pose):
         return
 
     print(f"\n📸 Ready for: {pose}")
-    print("HOLD SPACE to capture images")
-    print("RELEASE SPACE to pause")
-    print("Press ESC to quit anytime")
+    print("👉 HOLD SPACE to capture images")
+    print("👉 RELEASE SPACE to pause")
+    print("👉 Press ESC to quit anytime\n")
 
     next_index = get_next_index(folder, pose)
     captured = 0
@@ -79,11 +79,9 @@ def collect_for_pose(pose):
             if not ret:
                 continue
 
-            # Process mediapipe
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = pose_tracker.process(rgb)
 
-            # Draw pose nodes on preview
             if results.pose_landmarks:
                 mp_drawing.draw_landmarks(
                     frame,
@@ -91,19 +89,28 @@ def collect_for_pose(pose):
                     mp_pose.POSE_CONNECTIONS
                 )
 
-            cv2.putText(frame, "Hold SPACE to capture", (30, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            # ---------- SMALL UI, BOTTOM LEFT ----------
+            h, w = frame.shape[:2]
+            x, y = 20, h - 20
+
+            cv2.putText(frame, f"{pose}", (x, y - 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+
+            cv2.putText(frame, "Hold SPACE to capture", (x, y - 15),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+
+            cv2.putText(frame, f"{captured}/{BURST_SIZE}", (x, y + 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 2)
+            # ------------------------------------------------
 
             cv2.imshow("Capture (hold SPACE)", frame)
             key = cv2.waitKey(1) & 0xFF
 
-            # ESC → exit
-            if key == 27:
+            if key == 27:  # ESC
                 print("⛔ Stopped by user.")
                 break
 
-            # SPACE HELD → save frame + json
-            if key == 32:
+            if key == 32:  # SPACE held down
                 img_name = f"{pose}_{next_index:03}.jpg"
                 json_name = f"{pose}_{next_index:03}.json"
 
@@ -114,6 +121,7 @@ def collect_for_pose(pose):
                         json.dump(landmarks_to_dict(results.pose_landmarks), jf, indent=2)
 
                 print(f"Saved: {img_name}")
+
                 next_index += 1
                 captured += 1
 
@@ -126,20 +134,34 @@ def collect_for_pose(pose):
 
 
 # ---------------------------------------------
-# PROGRAM START
+# PROGRAM START (UPDATED PROMPT)
 # ---------------------------------------------
 if __name__ == "__main__":
-    print("\nSelect the pose to capture:\n")
+    print("\n==============================")
+    print("      POSE COLLECTION MENU     ")
+    print("==============================\n")
+
+    print("Select the pose to capture:\n")
 
     for i, pose in enumerate(POSES, start=1):
         print(f"{i}. {pose}")
 
-    choice = int(input("\nEnter number: "))
+    print("\n---------------------------------------")
+    print("👉  ENTER THE NUMBER OF YOUR POSE (e.g., 1)")
+    print("---------------------------------------\n")
+
+    choice = input("Enter number here: ")
+
+    if not choice.isdigit():
+        print("❌ Invalid input. Please enter a number like 1 or 2.")
+        exit()
+
+    choice = int(choice)
 
     if 1 <= choice <= len(POSES):
         collect_for_pose(POSES[choice - 1])
     else:
         print("❌ Invalid selection.")
 
-#Auth. Sandeep Sawhney & Ibrahim Quaizar
+#Auth Sandeep Sawhney & Ibrahim Quaizar
 #11/30/2025
