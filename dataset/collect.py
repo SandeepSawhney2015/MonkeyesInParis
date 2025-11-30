@@ -6,7 +6,7 @@ import mediapipe as mp
 
 # ------ CONFIG ------
 BURST_SIZE = 300
-DELAY_BETWEEN_PHOTOS = 0.2
+DELAY_BETWEEN_PHOTOS = 0.2   # <-- UPDATED TO 0.2s
 POSES = ["pose1", "pose2", "pose3", "pose4"]
 
 mp_drawing = mp.solutions.drawing_utils
@@ -14,18 +14,18 @@ mp_pose = mp.solutions.pose
 
 
 # ---------------------------------------------
-# Find next image index (avoids overwrites)
+# Find next available index for pose file naming
 # ---------------------------------------------
-def get_next_index(folder):
-    existing = [f for f in os.listdir(folder) if f.endswith(".jpg")]
-    if not existing:
+def get_next_index(folder, pose_name):
+    files = [f for f in os.listdir(folder) if f.startswith(pose_name) and f.endswith(".jpg")]
+    if not files:
         return 1
 
     numbers = []
-    for f in existing:
-        name = f.replace(".jpg", "")
+    for f in files:
         try:
-            numbers.append(int(name))
+            num = int(f.replace(pose_name + "_", "").replace(".jpg", ""))
+            numbers.append(num)
         except:
             pass
 
@@ -48,7 +48,7 @@ def landmarks_to_dict(landmarks):
 
 
 # ---------------------------------------------
-# Collect images & JSON data for one pose
+# Collect images & JSON for one pose
 # ---------------------------------------------
 def collect_for_pose(pose):
     folder = os.path.join(os.getcwd(), pose)
@@ -56,14 +56,16 @@ def collect_for_pose(pose):
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("❌ ERROR: Could not open camera.")
+        print("❌ ERROR: Could not access camera.")
         return
 
-    print(f"\n📸 Ready to collect for: {pose}")
-    print("Press ENTER to begin capturing...")
-    input()
+    print(f"\n📸 Ready for: {pose}")
+    print("HOLD SPACE to capture images")
+    print("RELEASE SPACE to pause")
+    print("Press ESC to quit anytime")
 
-    next_index = get_next_index(folder)
+    next_index = get_next_index(folder, pose)
+    captured = 0
 
     with mp_pose.Pose(
         model_complexity=1,
@@ -72,17 +74,16 @@ def collect_for_pose(pose):
         min_tracking_confidence=0.5
     ) as pose_tracker:
 
-        for i in range(BURST_SIZE):
-            success, frame = cap.read()
-            if not success:
-                print("❌ ERROR: Frame failed.")
-                break
+        while captured < BURST_SIZE:
+            ret, frame = cap.read()
+            if not ret:
+                continue
 
             # Process mediapipe
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = pose_tracker.process(rgb)
 
-            # Draw nodes and connections on frame
+            # Draw pose nodes on preview
             if results.pose_landmarks:
                 mp_drawing.draw_landmarks(
                     frame,
@@ -90,41 +91,42 @@ def collect_for_pose(pose):
                     mp_pose.POSE_CONNECTIONS
                 )
 
-                # Save landmark JSON
-                json_path = os.path.join(folder, f"{next_index + i}.json")
-                with open(json_path, "w") as jf:
-                    json.dump(landmarks_to_dict(results.pose_landmarks), jf, indent=2)
+            cv2.putText(frame, "Hold SPACE to capture", (30, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-            # Save the image
-            img_path = os.path.join(folder, f"{next_index + i}.jpg")
-            cv2.imwrite(img_path, frame)
+            cv2.imshow("Capture (hold SPACE)", frame)
+            key = cv2.waitKey(1) & 0xFF
 
-            # Show the live capturing window
-            cv2.imshow("Capturing (ESC to stop)", frame)
-
-            if cv2.waitKey(1) & 0xFF == 27:  # ESC
-                print("⛔ Stopped early.")
+            # ESC → exit
+            if key == 27:
+                print("⛔ Stopped by user.")
                 break
 
-            time.sleep(DELAY_BETWEEN_PHOTOS)
+            # SPACE HELD → save frame + json
+            if key == 32:
+                img_name = f"{pose}_{next_index:03}.jpg"
+                json_name = f"{pose}_{next_index:03}.json"
+
+                cv2.imwrite(os.path.join(folder, img_name), frame)
+
+                if results.pose_landmarks:
+                    with open(os.path.join(folder, json_name), "w") as jf:
+                        json.dump(landmarks_to_dict(results.pose_landmarks), jf, indent=2)
+
+                print(f"Saved: {img_name}")
+                next_index += 1
+                captured += 1
+
+                time.sleep(DELAY_BETWEEN_PHOTOS)
 
     cap.release()
     cv2.destroyAllWindows()
-    print(f"✅ Finished capturing {BURST_SIZE} images for '{pose}'")
-    print(f"📁 Saved to: {folder}")
+    print(f"\n✅ Finished collecting for {pose}")
+    print(f"📁 Saved in: {folder}")
 
 
 # ---------------------------------------------
 # PROGRAM START
 # ---------------------------------------------
 if __name__ == "__main__":
-    print("\nSelect the pose to capture:\n")
-    for i, pose in enumerate(POSES, start=1):
-        print(f"{i}. {pose}")
-
-    choice = int(input("\nEnter number: "))
-
-    if 1 <= choice <= len(POSES):
-        collect_for_pose(POSES[choice - 1])
-    else:
-        print("❌ Invalid selection.")
+    p
