@@ -1,116 +1,73 @@
 import cv2
 import os
-import time
 
-# --- CONFIG ---
-BURST_SIZE = 300
-DELAY_BETWEEN_PHOTOS = 0.2
-MAX_PEOPLE = 4
-POSES = ["pose1", "pose2", "pose3", "pose4"]
+# -----------------------------
+# Select pose by keyboard
+# -----------------------------
+print("Press 1, 2, 3, or 4 to choose pose:")
+print("1 = pose1")
+print("2 = pose2")
+print("3 = pose3")
+print("4 = pose4")
+print("---------------------------")
 
-# --- DETERMINE NEXT PERSON BASED ON EXISTING FOLDERS ---
-def get_starting_person(pose_name):
-    pose_folder = os.path.join("dataset", pose_name)
-    if not os.path.exists(pose_folder):
-        os.makedirs(pose_folder)
+pose_key = None
+while pose_key not in [49, 50, 51, 52]:  # ASCII codes for 1–4
+    pose_key = cv2.waitKey(0)
 
-    existing_people = [
-        d for d in os.listdir(pose_folder)
-        if os.path.isdir(os.path.join(pose_folder, d)) and d.startswith("person")
-    ]
+pose_map = {
+    49: "pose1",
+    50: "pose2",
+    51: "pose3",
+    52: "pose4"
+}
 
-    nums = []
-    for p in existing_people:
-        try:
-            nums.append(int(p.replace("person", "")))
-        except:
-            pass
+POSE_NAME = pose_map[pose_key]
+print(f"Selected pose: {POSE_NAME}")
 
-    if not nums:
-        return 1
+# -----------------------------
+# Prepare folders (local directory)
+# -----------------------------
+OUTPUT_DIR = POSE_NAME
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    highest = max(nums)
-    if highest >= MAX_PEOPLE:
-        return MAX_PEOPLE
-    return highest + 1
+# Count existing files to continue numbering
+existing_files = [f for f in os.listdir(OUTPUT_DIR) if f.endswith(".jpg")]
+start_index = len(existing_files) + 1
 
-
-# -------------------- MAIN PROGRAM --------------------
-
+# -----------------------------
+# Start camera
+# -----------------------------
 cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    print("[ERROR] Could not open webcam.")
-    exit()
 
-print("\n=== Pose Capture Program ===")
-print("Press 1–4 to choose a pose.")
-print("Press SPACE to start a 300-photo burst for next person.")
-print("Press ESC to quit.\n")
+print("Press SPACE to take a photo")
+print("Press Q to quit")
 
-selected_pose = None
-current_person = 1
+img_index = start_index
 
 while True:
     ret, frame = cap.read()
     if not ret:
-        print("[ERROR] Camera frame not received.")
+        print("Camera not found!")
         break
 
     cv2.imshow("Capture", frame)
-    key = cv2.waitKey(1) & 0xFF
+    key = cv2.waitKey(1)
 
-    # Quit
-    if key == 27:  # ESC
-        print("Exiting program.")
+    # SPACE saves a photo
+    if key == 32:
+        filename = f"{POSE_NAME}_{img_index:03d}.jpg"
+        filepath = os.path.join(OUTPUT_DIR, filename)
+
+        cv2.imwrite(filepath, frame)
+        print(f"Saved: {filepath}")
+
+        img_index += 1
+
+    # Q quits
+    elif key == ord('q') or key == ord('Q'):
+        print("Exiting...")
         break
-
-    # Pose selection (1–4)
-    if key in [ord("1"), ord("2"), ord("3"), ord("4")]:
-        selected_pose = POSES[key - ord("1")]
-        current_person = get_starting_person(selected_pose)
-        print(f"\nSelected pose: {selected_pose}")
-        print(f"Next person: {current_person}")
-        continue
-
-    # Start burst on SPACE
-    if key == 32:  # SPACE
-        if selected_pose is None:
-            print("❌ Select a pose first (1–4).")
-            continue
-
-        if current_person > MAX_PEOPLE:
-            print(f"❌ All {MAX_PEOPLE} people completed for {selected_pose}.")
-            print("Select another pose (1–4).")
-            continue
-
-        # Folders
-        pose_folder = os.path.join("dataset", selected_pose)
-        person_folder = os.path.join(pose_folder, f"person{current_person}")
-        os.makedirs(person_folder, exist_ok=True)
-
-        print(f"\n--- Starting burst for {selected_pose}, person {current_person} ---")
-
-        for i in range(1, BURST_SIZE + 1):
-            ret, frame = cap.read()
-            if not ret:
-                print("[ERROR] Camera disconnected.")
-                break
-
-            filename = os.path.join(person_folder, f"img{i}.jpg")
-            cv2.imwrite(filename, frame)
-
-            print(f"Saved {filename}")
-            time.sleep(DELAY_BETWEEN_PHOTOS)
-
-        print(f"\n✔️ Burst complete ({BURST_SIZE} photos).")
-
-        # Move to next person
-        current_person += 1
-        if current_person <= MAX_PEOPLE:
-            print(f"Next person will be person {current_person}.")
-        else:
-            print(f"❗ All {MAX_PEOPLE} people completed for {selected_pose}.")
-            print("Select another pose (1–4).")
 
 cap.release()
 cv2.destroyAllWindows()
