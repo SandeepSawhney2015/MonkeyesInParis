@@ -161,5 +161,5 @@ if __name__ == "__main__":
         collect_for_pose(POSES[choice - 1])
     else:
         print("❌ Invalid selection.")
-#Sandeep Sawhney @ Ibrahim Quaizar
+#Sandeep Sawhney & Ibrahim Quaizar
 #11/30/2025
