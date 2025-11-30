@@ -2,104 +2,106 @@ import cv2
 import os
 import time
 
-# Settings
+# --- CONFIG ---
 BURST_SIZE = 300
-DELAY_BETWEEN_SHOTS = 0.2  # seconds
+DELAY_BETWEEN_PHOTOS = 0.2
+MAX_PEOPLE = 4
+POSES = ["pose1", "pose2", "pose3", "pose4"]
 
-# Create folder structure
-def ensure_dirs():
-    for pose in range(1, 5):
-        pose_dir = f"pose{pose}"
-        if not os.path.exists(pose_dir):
-            os.makedirs(pose_dir)
-        for person in range(1, 10):  # allow up to 9 people if needed
-            person_dir = os.path.join(pose_dir, f"person{person}")
-            if not os.path.exists(person_dir):
-                os.makedirs(person_dir)
+# --- INTERNAL STATE ---
+selected_pose = None
+current_person = 1
+burst_active = False
 
-ensure_dirs()
+# --- DETERMINE NEXT PERSON BASED ON EXISTING FOLDERS ---
+def get_starting_person(pose_name):
+    pose_folder = os.path.join("dataset", pose_name)
+    if not os.path.exists(pose_folder):
+        os.makedirs(pose_folder)
 
-def get_next_image_number(folder):
-    existing = [int(f.split(".")[0]) for f in os.listdir(folder) if f.endswith(".jpg")]
-    return max(existing) + 1 if existing else 1
+    # Count existing person folders
+    existing_people = [
+        d for d in os.listdir(pose_folder)
+        if os.path.isdir(os.path.join(pose_folder, d)) and d.startswith("person")
+    ]
 
-def run_camera():
-    cap = cv2.VideoCapture(0)
+    nums = []
+    for p in existing_people:
+        try:
+            num = int(p.replace("person", ""))
+            nums.append(num)
+        except:
+            pass
 
-    current_pose = None
-    person_number = 1
+    if not nums:
+        return 1  # none exist, start at 1
 
-    print("\n=== CONTROLS ===")
-    print("Press 1–4 to select pose.")
-    print("Press SPACE to start a 300-image burst.")
-    print("Press ESC to quit.\n")
+    highest = max(nums)
+    if highest >= MAX_PEOPLE:
+        return MAX_PEOPLE  # cap
+    return highest + 1  # next person
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
+
+# -------------------- MAIN LOGIC --------------------
+
+cap = cv2.VideoCapture(0)
+if not cap.isOpened():
+    print("[ERROR] Could not open webcam.")
+    exit()
+
+print("\n=== Pose Capture Program ===")
+print("Press 1–4 to choose a pose.")
+print("Press SPACE to start a 300-photo burst for next person.")
+print("Press ESC to quit.\n")
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        print("[ERROR] Camera frame not received.")
+        break
+
+    # Show preview window
+    cv2.imshow("Capture", frame)
+
+    key = cv2.waitKey(1) & 0xFF
+
+    # Quit
+    if key == 27:  # ESC
+        print("Exiting program.")
+        break
+
+    # Pose selection (1–4)
+    if key in [ord("1"), ord("2"), ord("3"), ord("4")]:
+        selected_pose = POSES[key - ord("1")]
+        current_person = get_starting_person(selected_pose)
+        print(f"\nSelected pose: {selected_pose}")
+        print(f"Next person: {current_person}")
+        continue
+
+    # Space starts burst
+    if key == 32:  # SPACE
+        if selected_pose is None:
+            print("❌ Select a pose first (1–4).")
             continue
 
-        # Display window
-        cv2.putText(frame, f"Pose: {current_pose if current_pose else '-'} | Person: {person_number}",
-                    (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-        cv2.imshow("Dataset Collector", frame)
-
-        key = cv2.waitKey(1)
-
-        # ======================
-        # POSE SELECTION (1–4)
-        # ======================
-        if key in [ord("1"), ord("2"), ord("3"), ord("4")]:
-            current_pose = int(chr(key))
-            print(f"\nSelected Pose {current_pose}")
-            print("Press SPACE to start capturing...")
-            time.sleep(0.2)
-
-        # Quit with ESC
-        if key == 27:
-            print("Exiting...")
-            break
-
-        # No pose selected yet
-        if current_pose is None:
+        if current_person > MAX_PEOPLE:
+            print(f"❌ All {MAX_PEOPLE} people completed for {selected_pose}.")
+            print("Select a new pose (1–4).")
             continue
 
-        # ======================
-        # SPACE → START BURST
-        # ======================
-        if key == 32:  # space bar
-            pose_folder = f"pose{current_pose}"
-            person_folder = os.path.join(pose_folder, f"person{person_number}")
+        # Create folders
+        pose_folder = os.path.join("dataset", selected_pose)
+        person_folder = os.path.join(pose_folder, f"person{current_person}")
+        os.makedirs(person_folder, exist_ok=True)
 
-            print(f"\nStarting burst of {BURST_SIZE} photos for Pose {current_pose}, Person {person_number}")
+        print(f"\n--- Starting burst for {selected_pose}, person {current_person} ---")
 
-            img_number = get_next_image_number(person_folder)
+        # Burst loop
+        for i in range(1, BURST_SIZE + 1):
+            ret, frame = cap.read()
+            if not ret:
+                print("[ERROR] Camera disconnected.")
+                break
 
-            for i in range(BURST_SIZE):
-                ret, frame = cap.read()
-                if not ret:
-                    continue
-
-                filename = os.path.join(person_folder, f"{img_number}.jpg")
-                cv2.imwrite(filename, frame)
-                img_number += 1
-
-                cv2.putText(frame, f"Capturing {i+1}/{BURST_SIZE}", (10, 70),
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv2.imshow("Dataset Collector", frame)
-
-                if cv2.waitKey(1) == 27:  # ESC during burst
-                    print("Burst interrupted by ESC. Exiting...")
-                    cap.release()
-                    cv2.destroyAllWindows()
-                    return
-
-                time.sleep(DELAY_BETWEEN_SHOTS)
-
-            print(f"Burst complete! {BURST_SIZE} images saved.")
-            print("Press SPACE again for another 300, or ESC to exit.\n")
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-run_camera()
+            filename = os.path.join(person_folder, f"img{i}.jpg")
+            cv2.
