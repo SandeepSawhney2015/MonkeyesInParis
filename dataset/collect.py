@@ -2,72 +2,108 @@ import cv2
 import os
 import time
 
-def get_next_index(folder, prefix):
-    os.makedirs(folder, exist_ok=True)
-    files = [f for f in os.listdir(folder) if f.startswith(prefix) and f.endswith(".jpg")]
-    if not files:
-        return 1
-    nums = [int(f.replace(prefix + "_", "").replace(".jpg", "")) for f in files]
-    return max(nums) + 1
+BURST_COUNT = 300
+DELAY_BETWEEN_PHOTOS = 0.2  # seconds
 
-print("Press 1–4 to choose a pose folder.")
-print("Hold SPACE to take continuous photos.")
-print("Press Q to quit.")
 
-# Pose selection
-selected_pose = None
-while selected_pose is None:
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord('1'):
-        selected_pose = "pose1"
-    elif key == ord('2'):
-        selected_pose = "pose2"
-    elif key == ord('3'):
-        selected_pose = "pose3"
-    elif key == ord('4'):
-        selected_pose = "pose4"
+def ensure_pose_folders():
+    """Create pose1–pose4 folders if they do not exist."""
+    for i in range(1, 5):
+        folder = f"pose{i}"
+        if not os.path.exists(folder):
+            os.makedirs(folder)
 
-print(f"Selected: {selected_pose}")
 
-# Folder + numbering
-os.makedirs(selected_pose, exist_ok=True)
-index = get_next_index(selected_pose, selected_pose)
+def get_next_index(folder):
+    """Return next image index for the given pose folder."""
+    files = [f for f in os.listdir(folder) if f.lower().endswith(".jpg")]
 
-# Force Windows camera
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    numbers = []
+    for f in files:
+        try:
+            num = int(f.split("_")[1].split(".")[0])
+            numbers.append(num)
+        except:
+            pass
 
-if not cap.isOpened():
-    print("ERROR: Could not open camera.")
-    exit()
+    return max(numbers) + 1 if numbers else 1
 
-print("Camera running. Hold SPACE to capture photos.")
 
-last_capture_time = 0
-capture_delay = 0.2  # seconds between captures while holding space
+def main():
+    ensure_pose_folders()
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        print("Failed to grab frame.")
-        break
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("❌ ERROR: Camera not found.")
+        return
 
-    cv2.imshow("Camera", frame)
-    key = cv2.waitKey(1) & 0xFF
+    current_pose = None
+    capturing = False
+    photos_taken = 0
+    next_index = 1
 
-    # Quit
-    if key == ord('q'):
-        print("Exiting...")
-        break
+    print("\nControls:")
+    print("  1–4 = Select pose folder")
+    print("  Hold SPACE = Capture images")
+    print("  Release SPACE = Stop capturing")
+    print("  ESC = Quit program\n")
 
-    # Hold SPACE to continuously capture
-    if key == ord(' '):
-        now = time.time()
-        if now - last_capture_time >= capture_delay:
-            filename = f"{selected_pose}/{selected_pose}_{index:03d}.jpg"
-            cv2.imwrite(filename, frame)
-            print(f"Saved: {filename}")
-            index += 1
-            last_capture_time = now
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("❌ Failed to read frame.")
+            break
 
-cap.release()
-cv2.destroyAllWindows()
+        cv2.imshow("Capture Window", frame)
+        key = cv2.waitKey(1) & 0xFF
+
+        # Quit
+        if key == 27:  # ESC
+            break
+
+        # Select pose
+        if key in [ord("1"), ord("2"), ord("3"), ord("4")]:
+            pose_number = chr(key)
+            current_pose = f"pose{pose_number}"
+            next_index = get_next_index(current_pose)
+            photos_taken = 0
+            capturing = False
+
+            print(f"\n📁 Pose selected: {current_pose}")
+            print(f"   Next file index: {next_index}")
+            print(f"   Hold SPACE to start capturing...\n")
+            continue
+
+        # SPACE pressed → capture starts (only if pose was selected)
+        if key == 32:  # SPACE
+            if current_pose is not None:
+                capturing = True
+
+        # SPACE released
+        if key == 255:
+            capturing = False
+
+        # Capture logic
+        if capturing and current_pose is not None:
+            if photos_taken >= BURST_COUNT:
+                print("📸 300 photos complete! Press pose number to start new batch.")
+                capturing = False
+                continue
+
+            filename = f"{current_pose}_{next_index:03d}.jpg"
+            filepath = os.path.join(current_pose, filename)
+            cv2.imwrite(filepath, frame)
+
+            print(f"Saved: {filepath}")
+
+            next_index += 1
+            photos_taken += 1
+
+            time.sleep(DELAY_BETWEEN_PHOTOS)
+
+    cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    main()
