@@ -13,9 +13,6 @@ mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
 
-# ---------------------------------------------
-# Find next available index for pose file naming
-# ---------------------------------------------
 def get_next_index(folder, pose_name):
     files = [f for f in os.listdir(folder) if f.startswith(pose_name) and f.endswith(".jpg")]
     if not files:
@@ -32,9 +29,6 @@ def get_next_index(folder, pose_name):
     return max(nums) + 1 if nums else 1
 
 
-# ---------------------------------------------
-# Convert Mediapipe landmarks → Python list
-# ---------------------------------------------
 def landmarks_to_dict(landmarks):
     return [
         {
@@ -47,9 +41,6 @@ def landmarks_to_dict(landmarks):
     ]
 
 
-# ---------------------------------------------
-# Collect images & JSON for one pose
-# ---------------------------------------------
 def collect_for_pose(pose):
     folder = os.path.join(os.getcwd(), pose)
     os.makedirs(folder, exist_ok=True)
@@ -79,31 +70,39 @@ def collect_for_pose(pose):
             if not ret:
                 continue
 
+            # Process mediapipe
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = pose_tracker.process(rgb)
 
+            # ------- SAVE CLEAN FRAME BEFORE UI -------
+            save_frame = frame.copy()    # <--- CLEAN IMAGE
+            # ------------------------------------------
+
+            # Draw skeleton on display only
+            display_frame = frame.copy()
+
             if results.pose_landmarks:
                 mp_drawing.draw_landmarks(
-                    frame,
+                    display_frame,
                     results.pose_landmarks,
                     mp_pose.POSE_CONNECTIONS
                 )
 
             # ---------- SMALL UI, BOTTOM LEFT ----------
-            h, w = frame.shape[:2]
+            h, w = display_frame.shape[:2]
             x, y = 20, h - 20
 
-            cv2.putText(frame, f"{pose}", (x, y - 40),
+            cv2.putText(display_frame, f"{pose}", (x, y - 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
-            cv2.putText(frame, "Hold SPACE to capture", (x, y - 15),
+            cv2.putText(display_frame, "Hold SPACE to capture", (x, y - 15),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
 
-            cv2.putText(frame, f"{captured}/{BURST_SIZE}", (x, y + 10),
+            cv2.putText(display_frame, f"{captured}/{BURST_SIZE}", (x, y + 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 2)
-            # ------------------------------------------------
+            # ------------------------------------------
 
-            cv2.imshow("Capture (hold SPACE)", frame)
+            cv2.imshow("Capture (hold SPACE)", display_frame)
             key = cv2.waitKey(1) & 0xFF
 
             if key == 27:  # ESC
@@ -114,7 +113,8 @@ def collect_for_pose(pose):
                 img_name = f"{pose}_{next_index:03}.jpg"
                 json_name = f"{pose}_{next_index:03}.json"
 
-                cv2.imwrite(os.path.join(folder, img_name), frame)
+                # SAVE ONLY CLEAN IMAGE
+                cv2.imwrite(os.path.join(folder, img_name), save_frame)
 
                 if results.pose_landmarks:
                     with open(os.path.join(folder, json_name), "w") as jf:
@@ -134,7 +134,7 @@ def collect_for_pose(pose):
 
 
 # ---------------------------------------------
-# PROGRAM START (UPDATED PROMPT)
+# PROGRAM START (CLEAR MENU)
 # ---------------------------------------------
 if __name__ == "__main__":
     print("\n==============================")
@@ -164,4 +164,5 @@ if __name__ == "__main__":
         print("❌ Invalid selection.")
 
 #Auth Sandeep Sawhney & Ibrahim Quaizar
-#11/30/2025
+#Change: UI is not saved on images
+#Last Edit: 11/30/2025 @ 3:02 AM
