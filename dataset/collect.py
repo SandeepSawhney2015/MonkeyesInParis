@@ -6,7 +6,7 @@ import mediapipe as mp
 
 # ------ CONFIG ------
 BURST_SIZE = 300
-DELAY_BETWEEN_PHOTOS = 0.2   # <-- UPDATED TO 0.2s
+DELAY_BETWEEN_PHOTOS = 0.2
 POSES = ["pose1", "pose2", "pose3", "pose4"]
 
 mp_drawing = mp.solutions.drawing_utils
@@ -129,4 +129,14 @@ def collect_for_pose(pose):
 # PROGRAM START
 # ---------------------------------------------
 if __name__ == "__main__":
-    p
+    print("\nSelect the pose to capture:\n")
+
+    for i, pose in enumerate(POSES, start=1):
+        print(f"{i}. {pose}")
+
+    choice = int(input("\nEnter number: "))
+
+    if 1 <= choice <= len(POSES):
+        collect_for_pose(POSES[choice - 1])
+    else:
+        print("❌ Invalid selection.")
