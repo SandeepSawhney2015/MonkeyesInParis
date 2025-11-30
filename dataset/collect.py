@@ -70,29 +70,28 @@ def collect_for_pose(pose):
             if not ret:
                 continue
 
-            # Process mediapipe
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             results = pose_tracker.process(rgb)
 
-            # ------- SAVE CLEAN FRAME BEFORE UI -------
-            save_frame = frame.copy()    # <--- CLEAN IMAGE
-            # ------------------------------------------
-
-            # Draw skeleton on display only
-            display_frame = frame.copy()
+            # CLEAN SAVE FRAME (skeleton only)
+            save_frame = frame.copy()
 
             if results.pose_landmarks:
                 mp_drawing.draw_landmarks(
-                    display_frame,
+                    save_frame,
                     results.pose_landmarks,
                     mp_pose.POSE_CONNECTIONS
                 )
+
+            # DISPLAY FRAME FOR UI (copy of save_frame)
+            display_frame = save_frame.copy()
 
             # ---------- SMALL UI, BOTTOM LEFT ----------
             h, w = display_frame.shape[:2]
             x, y = 20, h - 20
 
-            cv2.putText(display_frame, f"{pose}", (x, y - 40),
+            # Show pose name on preview ONLY (not saved)
+            cv2.putText(display_frame, f"Pose: {pose}", (x, y - 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
             cv2.putText(display_frame, "Hold SPACE to capture", (x, y - 15),
@@ -113,7 +112,7 @@ def collect_for_pose(pose):
                 img_name = f"{pose}_{next_index:03}.jpg"
                 json_name = f"{pose}_{next_index:03}.json"
 
-                # SAVE ONLY CLEAN IMAGE
+                # SAVE CLEAN SKELETON FRAME
                 cv2.imwrite(os.path.join(folder, img_name), save_frame)
 
                 if results.pose_landmarks:
@@ -162,7 +161,3 @@ if __name__ == "__main__":
         collect_for_pose(POSES[choice - 1])
     else:
         print("❌ Invalid selection.")
-
-#Auth Sandeep Sawhney & Ibrahim Quaizar
-#Change: UI is not saved on images
-#Last Edit: 11/30/2025 @ 3:02 AM
