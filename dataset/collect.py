@@ -140,3 +140,6 @@ if __name__ == "__main__":
         collect_for_pose(POSES[choice - 1])
     else:
         print("❌ Invalid selection.")
+
+#Auth. Sandeep Sawhney & Ibrahim Quaizar
+#11/30/2025
