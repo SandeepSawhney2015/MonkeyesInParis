@@ -80,7 +80,7 @@ while True:
 
         if current_person > MAX_PEOPLE:
             print(f"❌ All {MAX_PEOPLE} people completed for {selected_pose}.")
-            print("Select a new pose (1–4).")
+            print("Select another pose (1–4).")
             continue
 
         # Folders
@@ -104,5 +104,13 @@ while True:
 
         print(f"\n✔️ Burst complete ({BURST_SIZE} photos).")
 
+        # Move to next person
         current_person += 1
-        if current_person <=_
+        if current_person <= MAX_PEOPLE:
+            print(f"Next person will be person {current_person}.")
+        else:
+            print(f"❗ All {MAX_PEOPLE} people completed for {selected_pose}.")
+            print("Select another pose (1–4).")
+
+cap.release()
+cv2.destroyAllWindows()
