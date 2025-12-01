@@ -8,12 +8,8 @@ import mediapipe as mp
 # CONFIGURATION
 # -------------------------------------------
 POSES = ["pose1", "pose2", "pose3", "pose4", "pose5", "pose6"]
-BURST_SIZE = 300
-DELAY_BETWEEN_PHOTOS = 0.15
 
-# Where your dataset is stored
 DATASET_DIR = "dataset"
-
 
 # -------------------------------------------
 # CREATE DIRECTORIES IF NEEDED
@@ -47,7 +43,8 @@ choice = int(input(f"Enter pose number (1-{len(POSES)}): ").strip())
 pose_name = POSES[choice - 1]
 pose_dir = os.path.join(DATASET_DIR, pose_name)
 
-print(f"\n>>> Collecting data for: {pose_name}\n")
+print(f"\n>>> Collecting data for: {pose_name}")
+print("Press SPACE to capture.\nPress Q to quit.\n")
 
 
 # -------------------------------------------
@@ -71,93 +68,89 @@ if not cap.isOpened():
 
 
 # -------------------------------------------
-# CAPTURE LOOP
+# MAIN LOOP
 # -------------------------------------------
-count = 0
-while count < BURST_SIZE:
+while True:
     ret, frame = cap.read()
     if not ret:
         print("Camera error.")
         break
 
-    # Convert for Mediapipe
     rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
     pose_results = pose_detector.process(rgb)
     hands_results = hand_detector.process(rgb)
     face_results = face_detector.process(rgb)
 
-    # Draw landmarks ONLY on screen (not saving)
+    # Show landmarks on screen ONLY
     disp = frame.copy()
 
     if pose_results.pose_landmarks:
         mp_drawing.draw_landmarks(
-            disp, pose_results.pose_landmarks, mp_pose.POSE_CONNECTIONS
-        )
+            disp, pose_results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
 
     if hands_results.multi_hand_landmarks:
         for hand in hands_results.multi_hand_landmarks:
             mp_drawing.draw_landmarks(
-                disp, hand, mp_hands.HAND_CONNECTIONS
-            )
+                disp, hand, mp_hands.HAND_CONNECTIONS)
 
     if face_results.multi_face_landmarks:
         for face in face_results.multi_face_landmarks:
             mp_drawing.draw_landmarks(
-                disp, face, mp_face.FACEMESH_TESSELATION
-            )
+                disp, face, mp_face.FACEMESH_TESSELATION)
 
-    cv2.putText(disp, f"{pose_name} ({count}/{BURST_SIZE})",
+    cv2.putText(disp, f"{pose_name}  Next: {next_num}",
                 (10, 35), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
 
     cv2.imshow("Collecting Data", disp)
 
-    # ----- SAVE RAW IMAGE + JSON -----
-    img_name = f"{next_num}.jpg"
-    json_name = f"{next_num}.json"
+    key = cv2.waitKey(1) & 0xFF
 
-    cv2.imwrite(os.path.join(pose_dir, img_name), frame)
+    # -----------------------------
+    # SPACEBAR → SAVE 1 FRAME
+    # -----------------------------
+    if key == 32:  # space bar
+        img_path = os.path.join(pose_dir, f"{next_num}.jpg")
+        json_path = os.path.join(pose_dir, f"{next_num}.json")
 
-    # Build JSON landmark dictionary
-    data = {
-        "pose": [],
-        "hands": [],
-        "face": []
-    }
+        # Save clean frame
+        cv2.imwrite(img_path, frame)
 
-    # Pose
-    if pose_results.pose_landmarks:
-        for lm in pose_results.pose_landmarks.landmark:
-            data["pose"].append([lm.x, lm.y, lm.z])
+        # Save landmarks in JSON
+        data = {
+            "pose": [],
+            "hands": [],
+            "face": []
+        }
 
-    # Hands
-    if hands_results.multi_hand_landmarks:
-        for hand in hands_results.multi_hand_landmarks:
-            hand_points = []
-            for lm in hand.landmark:
-                hand_points.append([lm.x, lm.y, lm.z])
-            data["hands"].append(hand_points)
+        if pose_results.pose_landmarks:
+            for lm in pose_results.pose_landmarks.landmark:
+                data["pose"].append([lm.x, lm.y, lm.z])
 
-    # Face mesh
-    if face_results.multi_face_landmarks:
-        for face in face_results.multi_face_landmarks:
-            face_points = []
-            for lm in face.landmark:
-                face_points.append([lm.x, lm.y, lm.z])
-            data["face"].append(face_points)
+        if hands_results.multi_hand_landmarks:
+            for hand in hands_results.multi_hand_landmarks:
+                points = []
+                for lm in hand.landmark:
+                    points.append([lm.x, lm.y, lm.z])
+                data["hands"].append(points)
 
-    # Save JSON
-    with open(os.path.join(pose_dir, json_name), "w") as f:
-        json.dump(data, f)
+        if face_results.multi_face_landmarks:
+            for face in face_results.multi_face_landmarks:
+                points = []
+                for lm in face.landmark:
+                    points.append([lm.x, lm.y, lm.z])
+                data["face"].append(points)
 
-    next_num += 1
-    count += 1
+        with open(json_path, "w") as f:
+            json.dump(data, f)
 
-    # timing
-    key = cv2.waitKey(1)
-    time.sleep(DELAY_BETWEEN_PHOTOS)
+        print(f"Captured {next_num}.jpg")
+        next_num += 1
 
-    if key & 0xFF == ord('q'):
+    # -----------------------------
+    # Q → Quit
+    # -----------------------------
+    if key == ord('q'):
         break
 
 
