@@ -1,8 +1,13 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # remove TF warnings
+
+import logging
+logging.getLogger('mediapipe').setLevel(logging.ERROR)  # remove MP warnings
+
 import cv2
 import mediapipe as mp
 import json
 import os
-import time
 from colorama import Fore, Style, init
 init()
 
@@ -15,14 +20,17 @@ RAW_SUFFIX = "_raw.jpg"
 NODE_SUFFIX = "_nodes.jpg"
 MAX_PHOTOS = 300
 
-NODE_RADIUS = 1          # small nodes
+NODE_RADIUS = 1
 NODE_THICKNESS = -1
 
 # -------------------------------------------------------
 # MEDIAPIPE SETUP
 # -------------------------------------------------------
 mp_draw = mp.solutions.drawing_utils
-mp_styles = mp.solutions.drawing_styles
+
+mp_pose = mp.solutions.pose
+mp_face = mp.solutions.face_mesh
+mp_hands = mp.solutions.hands
 
 holistic = mp.solutions.holistic.Holistic(
     static_image_mode=False,
@@ -126,38 +134,43 @@ while True:
     raw_frame = frame.copy()
     nodes_frame = frame.copy()
 
-    if results.face_landmarks:
-        mp_draw.draw_landmarks(
-            nodes_frame,
-            results.face_landmarks,
-            mp.solutions.holistic.FACEMESH_TESSELATION,
-            mp_styles.get_default_face_mesh_tesselation_style(),
-            mp_styles.get_default_face_mesh_contours_style()
-        )
+    # ----------------------------
+    # SAFE DRAWING (No KeyErrors)
+    # ----------------------------
 
+    # Pose
     if results.pose_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.pose_landmarks,
-            mp.solutions.holistic.POSE_CONNECTIONS,
-            mp_styles.get_default_pose_landmarks_style()
+            mp_pose.POSE_CONNECTIONS
         )
 
+    # Face
+    if results.face_landmarks:
+        mp_draw.draw_landmarks(
+            nodes_frame,
+            results.face_landmarks,
+            mp_face.FACEMESH_TESSELATION
+        )
+
+    # Left hand
     if results.left_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.left_hand_landmarks,
-            mp.solutions.holistic.HAND_CONNECTIONS
+            mp_hands.HAND_CONNECTIONS
         )
 
+    # Right hand
     if results.right_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.right_hand_landmarks,
-            mp.solutions.holistic.HAND_CONNECTIONS
+            mp_hands.HAND_CONNECTIONS
         )
 
-    # UI overlay (not saved in raw)
+    # UI overlay (not saved to raw)
     cv2.putText(nodes_frame, f"POSE: {pose}", (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
 
@@ -189,7 +202,7 @@ while True:
             print(Fore.GREEN + f"\nReached {MAX_PHOTOS} images. Auto-closing..." + Style.RESET_ALL)
             break
 
-    # ESC KEY = quit
+    # ESC = quit
     if key == 27:
         print(Fore.RED + "\nESC pressed. Closing program..." + Style.RESET_ALL)
         break
