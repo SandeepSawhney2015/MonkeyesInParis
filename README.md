@@ -11,12 +11,14 @@ The model is using a mediapipe system to create nodes to recognize certain poses
 Contributors: Logan Schwandner (schlogan@umich.edu), Andrew Yang (yangandy@umich.edu), Isaac Yu (isaacyu@umich.edu)
 
 ![](READMEIMAGES/vewwqeyihbaf1.jpeg)<br>
-![](READMEIMAGES/pose1Example.jpg)<br>
+![](READMEIMAGES/pose1_example.jpg)<br>
 ![](READMEIMAGES/speedINeedThis.jpg)<br>
-![](READMEIMAGES/pose2Example.jpg)<br>
+![](READMEIMAGES/pose2_example.jpg)<br>
 ![](READMEIMAGES/isItMonke.png)<br>
+![](READMEIMAGES/pose3_example.jpg)<br>
 ![](READMEIMAGES/monkeyAHHHH.png)<br>
-![](READMEIMAGES/pose3Example.jpg)<br>
+![](READMEIMAGES/pose4_example.jpg)<br>
 ![](READMEIMAGES/monkeyLOL.png)<br>
+![](READMEIMAGES/pose5_example.jpg)<br>
 ![](READMEIMAGES/monkeyAhHa.png)<br>
-![](READMEIMAGES/pose4Example.jpg)<br>
+![](READMEIMAGES/pose6_example.jpg)<br>
