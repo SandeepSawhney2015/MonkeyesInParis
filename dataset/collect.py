@@ -1,177 +1,198 @@
 import cv2
+import mediapipe as mp
+import json
 import os
 import time
-import json
-import mediapipe as mp
+from colorama import Fore, Style, init
+init()
 
-# -------------------------------------------
-# CONFIGURATION
-# -------------------------------------------
-POSES = ["pose1", "pose2", "pose3", "pose4", "pose5", "pose6"]
+# -------------------------------------------------------
+# CONFIG
+# -------------------------------------------------------
+POSE_NAMES = ["pose1", "pose2", "pose3", "pose4", "pose5", "pose6"]
 
-DATASET_DIR = "dataset"
+RAW_SUFFIX = "_raw.jpg"
+NODE_SUFFIX = "_nodes.jpg"
+MAX_PHOTOS = 300
 
-# -------------------------------------------
-# CREATE DIRECTORIES IF NEEDED
-# -------------------------------------------
-for pose_name in POSES:
-    pose_path = os.path.join(DATASET_DIR, pose_name)
-    os.makedirs(pose_path, exist_ok=True)
+NODE_RADIUS = 1          # small nodes
+NODE_THICKNESS = -1
 
-# -------------------------------------------
-# INIT MEDIAPIPE MODELS
-# -------------------------------------------
-mp_pose = mp.solutions.pose
-mp_hands = mp.solutions.hands
-mp_face = mp.solutions.face_mesh
-mp_drawing = mp.solutions.drawing_utils
+# -------------------------------------------------------
+# MEDIAPIPE SETUP
+# -------------------------------------------------------
+mp_draw = mp.solutions.drawing_utils
+mp_styles = mp.solutions.drawing_styles
 
-# SMALL drawing spec (smaller nodes)
-small_spec = mp_drawing.DrawingSpec(color=(0,255,0), thickness=1, circle_radius=1)
+holistic = mp.solutions.holistic.Holistic(
+    static_image_mode=False,
+    model_complexity=2,
+    enable_segmentation=False,
+    refine_face_landmarks=True
+)
 
-pose_detector = mp_pose.Pose()
-hand_detector = mp_hands.Hands(max_num_hands=2)
-face_detector = mp_face.FaceMesh(max_num_faces=1)
+# -------------------------------------------------------
+# TERMINAL UI
+# -------------------------------------------------------
+def banner():
+    os.system("cls" if os.name == "nt" else "clear")
+    print(Fore.CYAN + "═══════════════════════════════════════════════")
+    print("            MONKEYSINPARIS DATA COLLECTOR")
+    print("═══════════════════════════════════════════════" + Style.RESET_ALL)
+    print(Fore.YELLOW + "Press SPACE to capture | ESC to quit" + Style.RESET_ALL)
+    print()
 
-# -------------------------------------------
-# SELECT POSE
-# -------------------------------------------
-print()
-for i, p in enumerate(POSES, start=1):
-    print(f"{i}. {p}")
-choice = int(input(f"Enter pose number (1-{len(POSES)}): ").strip())
+def choose_pose():
+    print(Fore.GREEN + "Available Poses:" + Style.RESET_ALL)
+    for i, p in enumerate(POSE_NAMES, 1):
+        print(f"  {i}. {p}")
+    print()
+    choice = int(input(Fore.CYAN + "Enter pose number (1–6): " + Style.RESET_ALL))
+    return POSE_NAMES[choice - 1]
 
-pose_name = POSES[choice - 1]
-pose_dir = os.path.join(DATASET_DIR, pose_name)
+# -------------------------------------------------------
+# SAVE JSON
+# -------------------------------------------------------
+def save_json(filepath, results):
+    data = {
+        "pose_landmarks": [],
+        "face_landmarks": [],
+        "left_hand_landmarks": [],
+        "right_hand_landmarks": []
+    }
 
-print(f"\n>>> Collecting data for: {pose_name}")
-print("Press SPACE to capture.\nPress Q to quit.\n")
+    if results.pose_landmarks:
+        for lm in results.pose_landmarks.landmark:
+            data["pose_landmarks"].append([lm.x, lm.y, lm.z, lm.visibility])
 
-# -------------------------------------------
-# FIND NEXT FILE NUMBER
-# -------------------------------------------
-existing = [f for f in os.listdir(pose_dir) if f.endswith(".jpg")]
-if existing:
-    nums = [int(f.split("_")[1].split(".")[0]) for f in existing]
-    next_num = max(nums) + 1
-else:
-    next_num = 1
+    if results.face_landmarks:
+        for lm in results.face_landmarks.landmark:
+            data["face_landmarks"].append([lm.x, lm.y, lm.z])
 
-# -------------------------------------------
-# OPEN CAMERA
-# -------------------------------------------
+    if results.left_hand_landmarks:
+        for lm in results.left_hand_landmarks.landmark:
+            data["left_hand_landmarks"].append([lm.x, lm.y, lm.z])
+
+    if results.right_hand_landmarks:
+        for lm in results.right_hand_landmarks.landmark:
+            data["right_hand_landmarks"].append([lm.x, lm.y, lm.z])
+
+    with open(filepath, "w") as f:
+        json.dump(data, f, indent=2)
+
+# -------------------------------------------------------
+# FILE COUNTER
+# -------------------------------------------------------
+def get_next_index(folder, pose):
+    files = [f for f in os.listdir(folder) if f.startswith(pose)]
+    if not files:
+        return 1
+    nums = []
+    for name in files:
+        try:
+            num = int(name.split("_")[1].split(".")[0])
+            nums.append(num)
+        except:
+            pass
+    return max(nums) + 1 if nums else 1
+
+# -------------------------------------------------------
+# MAIN
+# -------------------------------------------------------
+banner()
+pose = choose_pose()
+banner()
+print(Fore.MAGENTA + f">>> Collecting: {pose}" + Style.RESET_ALL)
+
+output_folder = pose
+os.makedirs(output_folder, exist_ok=True)
+
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
-    print("ERROR: Could not access webcam.")
+    print(Fore.RED + "ERROR: Cannot open webcam" + Style.RESET_ALL)
     exit()
 
-# -------------------------------------------
-# MAIN LOOP
-# -------------------------------------------
+index = get_next_index(output_folder, pose)
+
 while True:
     ret, frame = cap.read()
     if not ret:
-        print("Camera error.")
+        print(Fore.RED + "Failed to read frame." + Style.RESET_ALL)
         break
 
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    results = holistic.process(frame_rgb)
 
-    pose_results = pose_detector.process(rgb)
-    hands_results = hand_detector.process(rgb)
-    face_results = face_detector.process(rgb)
+    raw_frame = frame.copy()
+    nodes_frame = frame.copy()
 
-    # ----- UI DISPLAY FRAME -----
-    disp = frame.copy()
-
-    # Draw nodes SMALL
-    if pose_results.pose_landmarks:
-        mp_drawing.draw_landmarks(
-            disp,
-            pose_results.pose_landmarks,
-            mp_pose.POSE_CONNECTIONS,
-            small_spec,
-            small_spec
+    if results.face_landmarks:
+        mp_draw.draw_landmarks(
+            nodes_frame,
+            results.face_landmarks,
+            mp.solutions.holistic.FACEMESH_TESSELATION,
+            mp_styles.get_default_face_mesh_tesselation_style(),
+            mp_styles.get_default_face_mesh_contours_style()
         )
 
-    if hands_results.multi_hand_landmarks:
-        for hand in hands_results.multi_hand_landmarks:
-            mp_drawing.draw_landmarks(
-                disp,
-                hand,
-                mp_hands.HAND_CONNECTIONS,
-                small_spec,
-                small_spec
-            )
+    if results.pose_landmarks:
+        mp_draw.draw_landmarks(
+            nodes_frame,
+            results.pose_landmarks,
+            mp.solutions.holistic.POSE_CONNECTIONS,
+            mp_styles.get_default_pose_landmarks_style()
+        )
 
-    if face_results.multi_face_landmarks:
-        for face in face_results.multi_face_landmarks:
-            mp_drawing.draw_landmarks(
-                disp,
-                face,
-                mp_face.FACEMESH_TESSELATION,
-                small_spec,
-                small_spec
-            )
+    if results.left_hand_landmarks:
+        mp_draw.draw_landmarks(
+            nodes_frame,
+            results.left_hand_landmarks,
+            mp.solutions.holistic.HAND_CONNECTIONS
+        )
 
-    # On-screen UI (NOT saved)
-    cv2.putText(disp,
-                f"{pose_name.upper()}  Next: {next_num:03d}",
-                (10, 35),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1,
-                (0, 255, 0),
-                2)
+    if results.right_hand_landmarks:
+        mp_draw.draw_landmarks(
+            nodes_frame,
+            results.right_hand_landmarks,
+            mp.solutions.holistic.HAND_CONNECTIONS
+        )
 
-    cv2.imshow("Collecting Data", disp)
+    # UI overlay (not saved in raw)
+    cv2.putText(nodes_frame, f"POSE: {pose}", (20, 40),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+
+    cv2.putText(nodes_frame, f"COUNT: {index-1}/{MAX_PHOTOS}", (20, 80),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
+
+    cv2.imshow("MonkeysInParis Collector", nodes_frame)
 
     key = cv2.waitKey(1) & 0xFF
 
-    # -------------------------------------------
-    # SPACEBAR → SAVE ONE FRAME
-    # -------------------------------------------
-    if key == 32:  # space
-        img_name = f"{pose_name}_{next_num:03d}.jpg"
-        json_name = f"{pose_name}_{next_num:03d}.json"
+    # SPACE = capture
+    if key == ord(' '):
+        if index > MAX_PHOTOS:
+            print(Fore.GREEN + f"\nReached {MAX_PHOTOS} images. Auto-closing..." + Style.RESET_ALL)
+            break
 
-        img_path = os.path.join(pose_dir, img_name)
-        json_path = os.path.join(pose_dir, json_name)
+        raw_path = os.path.join(output_folder, f"{pose}_{index:03d}{RAW_SUFFIX}")
+        nodes_path = os.path.join(output_folder, f"{pose}_{index:03d}{NODE_SUFFIX}")
+        json_path = os.path.join(output_folder, f"{pose}_{index:03d}.json")
 
-        # Save raw clean frame (NO UI)
-        cv2.imwrite(img_path, frame)
+        cv2.imwrite(raw_path, raw_frame)
+        cv2.imwrite(nodes_path, nodes_frame)
+        save_json(json_path, results)
 
-        # Save landmark JSON
-        data = {"pose": [], "hands": [], "face": []}
+        print(Fore.GREEN + f"Saved {pose}_{index:03d}" + Style.RESET_ALL)
+        index += 1
 
-        if pose_results.pose_landmarks:
-            for lm in pose_results.pose_landmarks.landmark:
-                data["pose"].append([lm.x, lm.y, lm.z])
+        if index > MAX_PHOTOS:
+            print(Fore.GREEN + f"\nReached {MAX_PHOTOS} images. Auto-closing..." + Style.RESET_ALL)
+            break
 
-        if hands_results.multi_hand_landmarks:
-            for hand in hands_results.multi_hand_landmarks:
-                hand_points = []
-                for lm in hand.landmark:
-                    hand_points.append([lm.x, lm.y, lm.z])
-                data["hands"].append(hand_points)
-
-        if face_results.multi_face_landmarks:
-            for face in face_results.multi_face_landmarks:
-                fpoints = []
-                for lm in face.landmark:
-                    fpoints.append([lm.x, lm.y, lm.z])
-                data["face"].append(fpoints)
-
-        with open(json_path, "w") as f:
-            json.dump(data, f)
-
-        print(f"Captured {img_name}")
-        next_num += 1
-
-    # -------------------------------------------
-    # Q → QUIT
-    # -------------------------------------------
-    if key == ord('q'):
+    # ESC KEY = quit
+    if key == 27:
+        print(Fore.RED + "\nESC pressed. Closing program..." + Style.RESET_ALL)
         break
 
 cap.release()
 cv2.destroyAllWindows()
-print("DONE!")
