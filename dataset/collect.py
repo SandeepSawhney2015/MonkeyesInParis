@@ -29,32 +29,55 @@ RAW_SUFFIX = "_raw.jpg"
 NODE_SUFFIX = "_nodes.jpg"
 MAX_PHOTOS = 300
 
-# MICRO-NODES SETTINGS
-SMALL_RADIUS = 1
-SMALL_THICKNESS = 1
-
 # -------------------------------------------------------
 # MEDIAPIPE SETUP
 # -------------------------------------------------------
 mp_draw = mp.solutions.drawing_utils
-
 mp_pose = mp.solutions.pose
 mp_face = mp.solutions.face_mesh
 mp_hands = mp.solutions.hands
 
-# Ultra-small landmark specs
-small_landmark_style = mp_draw.DrawingSpec(
-    color=(0, 255, 0),
-    thickness=SMALL_THICKNESS,
-    circle_radius=SMALL_RADIUS
+# ============================================================
+# CUSTOM NODE STYLES PER BODY PART
+# ============================================================
+
+# FACE: tiny red dots, tiny white lines
+face_landmark_style = mp_draw.DrawingSpec(
+    color=(0, 0, 255),  # red
+    thickness=1,
+    circle_radius=1
+)
+face_connection_style = mp_draw.DrawingSpec(
+    color=(255, 255, 255),  # white
+    thickness=1,
+    circle_radius=1
 )
 
-small_connection_style = mp_draw.DrawingSpec(
-    color=(0, 200, 200),
-    thickness=SMALL_THICKNESS,
-    circle_radius=SMALL_RADIUS
+# HANDS: small blue dots + thin white lines
+hand_landmark_style = mp_draw.DrawingSpec(
+    color=(255, 0, 0),  # blue
+    thickness=2,
+    circle_radius=2
+)
+hand_connection_style = mp_draw.DrawingSpec(
+    color=(255, 255, 255),  # white
+    thickness=1,
+    circle_radius=2
 )
 
+# POSE BODY: medium green dots + thicker white lines
+pose_landmark_style = mp_draw.DrawingSpec(
+    color=(0, 255, 0),  # green
+    thickness=3,
+    circle_radius=3
+)
+pose_connection_style = mp_draw.DrawingSpec(
+    color=(255, 255, 255),  # white
+    thickness=2,
+    circle_radius=3
+)
+
+# Initialize Mediapipe Holistic
 holistic = mp.solutions.holistic.Holistic(
     static_image_mode=False,
     model_complexity=2,
@@ -164,34 +187,38 @@ while True:
     raw_frame = frame.copy()
     nodes_frame = frame.copy()
 
-    # ----------------------------
-    # SAFE MICRO-NODE DRAWING
-    # ----------------------------
+    # ---------------------------------------------------
+    # DRAW LANDMARKS WITH CUSTOM BODY-PART STYLING
+    # ---------------------------------------------------
+
+    # POSE (green dots, white lines)
     if results.pose_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.pose_landmarks,
             mp_pose.POSE_CONNECTIONS,
-            landmark_drawing_spec=small_landmark_style,
-            connection_drawing_spec=small_connection_style
+            landmark_drawing_spec=pose_landmark_style,
+            connection_drawing_spec=pose_connection_style
         )
 
+    # FACE (tiny red dots)
     if results.face_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.face_landmarks,
             mp_face.FACEMESH_TESSELATION,
-            landmark_drawing_spec=small_landmark_style,
-            connection_drawing_spec=small_connection_style
+            landmark_drawing_spec=face_landmark_style,
+            connection_drawing_spec=face_connection_style
         )
 
+    # HANDS (blue dots, white lines)
     if results.left_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.left_hand_landmarks,
             mp_hands.HAND_CONNECTIONS,
-            landmark_drawing_spec=small_landmark_style,
-            connection_drawing_spec=small_connection_style
+            landmark_drawing_spec=hand_landmark_style,
+            connection_drawing_spec=hand_connection_style
         )
 
     if results.right_hand_landmarks:
@@ -199,11 +226,13 @@ while True:
             nodes_frame,
             results.right_hand_landmarks,
             mp_hands.HAND_CONNECTIONS,
-            landmark_drawing_spec=small_landmark_style,
-            connection_drawing_spec=small_connection_style
+            landmark_drawing_spec=hand_landmark_style,
+            connection_drawing_spec=hand_connection_style
         )
 
-    # UI overlay
+    # ---------------------------------------------------
+    # UI OVERLAY
+    # ---------------------------------------------------
     cv2.putText(nodes_frame, f"POSE: {pose}", (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
 
