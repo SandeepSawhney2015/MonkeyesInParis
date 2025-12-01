@@ -16,9 +16,9 @@ Contributors: Logan Schwandner (schlogan@umich.edu), Andrew Yang (yangandy@umich
 ![](READMEIMAGES/pose2_example.jpg)<br>
 ![](READMEIMAGES/isItMonke.png)<br>
 ![](READMEIMAGES/pose3_example.jpg)<br>
-![](READMEIMAGES/monkeyAHHHH.png)<br>
-![](READMEIMAGES/pose4_example.jpg)<br>
-![](READMEIMAGES/monkeyLOL.png)<br>
-![](READMEIMAGES/pose5_example.jpg)<br>
 ![](READMEIMAGES/monkeyAhHa.png)<br>
 ![](READMEIMAGES/pose6_example.jpg)<br>
+![](READMEIMAGES/monkeyLOL.png)<br>
+![](READMEIMAGES/pose5_example.jpg)<br>
+![](READMEIMAGES/monkeyAHHHH.png)<br>
+![](READMEIMAGES/pose4_example.jpg)<br>
