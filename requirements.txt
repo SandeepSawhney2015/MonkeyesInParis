@@ -8,3 +8,4 @@ matplotlib==3.8.2
 protobuf==4.25.3
 absl-py==2.1.0
 requests==2.31.0
+colorama==0.4.6
