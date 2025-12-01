@@ -1,165 +1,135 @@
 import cv2
+import mediapipe as mp
 import os
 import time
 import json
-import mediapipe as mp
 
-# ------ CONFIG ------
+# ---------------- CONFIG ----------------
 BURST_SIZE = 300
-DELAY_BETWEEN_PHOTOS = 0.2
-POSES = ["pose1", "pose2", "pose3", "pose4"]
+DELAY_BETWEEN_PHOTOS = 0.15
+SAVE_FOLDER = "dataset"
 
-mp_drawing = mp.solutions.drawing_utils
+POSE_NAMES = ["pose1", "pose2", "pose3", "pose4", "pose5"]
+
+# Ask for which pose to collect
+print("Which pose do you want to collect?")
+for i, name in enumerate(POSE_NAMES, 1):
+    print(f"{i}. {name}")
+
+choice = int(input("Enter pose number (1-5): ").strip())
+POSE_NAME = POSE_NAMES[choice - 1]
+
+print(f"\n>>> Collecting data for: {POSE_NAME}\n")
+
+# Create pose folder
+pose_folder = os.path.join(SAVE_FOLDER, POSE_NAME)
+os.makedirs(pose_folder, exist_ok=True)
+
+# ------------ MEDIAPIPE MODELS ------------
+mp_hands = mp.solutions.hands
 mp_pose = mp.solutions.pose
+mp_drawing = mp.solutions.drawing_utils
 
+hands = mp_hands.Hands(
+    max_num_hands=2,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 
-def get_next_index(folder, pose_name):
-    files = [f for f in os.listdir(folder) if f.startswith(pose_name) and f.endswith(".jpg")]
-    if not files:
-        return 1
+pose = mp_pose.Pose(
+    model_complexity=1,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 
-    nums = []
-    for f in files:
-        try:
-            num = int(f.replace(pose_name + "_", "").replace(".jpg", ""))
-            nums.append(num)
-        except:
-            pass
+# ------------- CAMERA -----------------
+cap = cv2.VideoCapture(0)
+time.sleep(1)
 
-    return max(nums) + 1 if nums else 1
+# ---------- DETERMINE NEXT IMAGE INDEX ----------
+existing = [int(f.split(".")[0]) for f in os.listdir(pose_folder) if f.endswith(".jpg")]
+start_index = max(existing) + 1 if existing else 1
 
+print(f"Starting at image index: {start_index}")
 
-def landmarks_to_dict(landmarks):
-    return [
-        {
-            "x": lm.x,
-            "y": lm.y,
-            "z": lm.z,
-            "visibility": lm.visibility
-        }
-        for lm in landmarks.landmark
-    ]
+# -------------- MAIN LOOP ---------------
+count = 0
 
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        continue
 
-def collect_for_pose(pose):
-    folder = os.path.join(os.getcwd(), pose)
-    os.makedirs(folder, exist_ok=True)
+    debug_frame = frame.copy()
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-    cap = cv2.VideoCapture(0)
-    if not cap.isOpened():
-        print("❌ ERROR: Could not access camera.")
-        return
+    # Run BOTH models
+    hand_results = hands.process(rgb)
+    pose_results = pose.process(rgb)
 
-    print(f"\n📸 Ready for: {pose}")
-    print("👉 HOLD SPACE to capture images")
-    print("👉 RELEASE SPACE to pause")
-    print("👉 Press ESC to quit anytime\n")
+    # ------- DRAW FINGER LANDMARKS -------
+    if hand_results.multi_hand_landmarks:
+        for hand in hand_results.multi_hand_landmarks:
+            mp_drawing.draw_landmarks(debug_frame, hand, mp_hands.HAND_CONNECTIONS)
 
-    next_index = get_next_index(folder, pose)
-    captured = 0
+    # ------- DRAW POSE LANDMARKS (OPTIONAL) -------
+    if pose_results.pose_landmarks:
+        mp_drawing.draw_landmarks(
+            debug_frame,
+            pose_results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS
+        )
 
-    with mp_pose.Pose(
-        model_complexity=1,
-        enable_segmentation=False,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5
-    ) as pose_tracker:
+    cv2.imshow("Collecting", debug_frame)
+    key = cv2.waitKey(1)
 
-        while captured < BURST_SIZE:
+    # SPACE = start burst
+    if key == 32:
+        print("Capturing burst...")
+        for i in range(BURST_SIZE):
             ret, frame = cap.read()
             if not ret:
                 continue
 
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            results = pose_tracker.process(rgb)
+            hand_results = hands.process(rgb)
+            pose_results = pose.process(rgb)
 
-            # CLEAN SAVE FRAME (skeleton only)
-            save_frame = frame.copy()
+            # ---- Extract Landmark Data ----
+            data = {"hands": [], "pose": []}
 
-            if results.pose_landmarks:
-                mp_drawing.draw_landmarks(
-                    save_frame,
-                    results.pose_landmarks,
-                    mp_pose.POSE_CONNECTIONS
-                )
+            # Hand landmarks
+            if hand_results.multi_hand_landmarks:
+                for hand in hand_results.multi_hand_landmarks:
+                    points = []
+                    for lm in hand.landmark:
+                        points.append([lm.x, lm.y, lm.z])
+                    data["hands"].append(points)
 
-            # DISPLAY FRAME FOR UI (copy of save_frame)
-            display_frame = save_frame.copy()
+            # Pose landmarks
+            if pose_results.pose_landmarks:
+                for lm in pose_results.pose_landmarks.landmark:
+                    data["pose"].append([lm.x, lm.y, lm.z])
 
-            # ---------- SMALL UI, BOTTOM LEFT ----------
-            h, w = display_frame.shape[:2]
-            x, y = 20, h - 20
+            # Save image + JSON
+            img_path = os.path.join(pose_folder, f"{start_index}.jpg")
+            json_path = os.path.join(pose_folder, f"{start_index}.json")
 
-            # Show pose name on preview ONLY (not saved)
-            cv2.putText(display_frame, f"Pose: {pose}", (x, y - 40),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            cv2.imwrite(img_path, frame)
 
-            cv2.putText(display_frame, "Hold SPACE to capture", (x, y - 15),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            with open(json_path, "w") as f:
+                json.dump(data, f, indent=2)
 
-            cv2.putText(display_frame, f"{captured}/{BURST_SIZE}", (x, y + 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 200, 255), 2)
-            # ------------------------------------------
+            print(f"Saved {img_path}")
+            start_index += 1
+            count += 1
+            time.sleep(DELAY_BETWEEN_PHOTOS)
 
-            cv2.imshow("Capture (hold SPACE)", display_frame)
-            key = cv2.waitKey(1) & 0xFF
+        print("Burst complete.")
 
-            if key == 27:  # ESC
-                print("⛔ Stopped by user.")
-                break
+    # ESC = exit
+    if key == 27:
+        break
 
-            if key == 32:  # SPACE held down
-                img_name = f"{pose}_{next_index:03}.jpg"
-                json_name = f"{pose}_{next_index:03}.json"
-
-                # SAVE CLEAN SKELETON FRAME
-                cv2.imwrite(os.path.join(folder, img_name), save_frame)
-
-                if results.pose_landmarks:
-                    with open(os.path.join(folder, json_name), "w") as jf:
-                        json.dump(landmarks_to_dict(results.pose_landmarks), jf, indent=2)
-
-                print(f"Saved: {img_name}")
-
-                next_index += 1
-                captured += 1
-
-                time.sleep(DELAY_BETWEEN_PHOTOS)
-
-    cap.release()
-    cv2.destroyAllWindows()
-    print(f"\n✅ Finished collecting for {pose}")
-    print(f"📁 Saved in: {folder}")
-
-
-# ---------------------------------------------
-# PROGRAM START (CLEAR MENU)
-# ---------------------------------------------
-if __name__ == "__main__":
-    print("\n==============================")
-    print("      POSE COLLECTION MENU     ")
-    print("==============================\n")
-
-    print("Select the pose to capture:\n")
-
-    for i, pose in enumerate(POSES, start=1):
-        print(f"{i}. {pose}")
-
-    print("\n---------------------------------------")
-    print("👉  ENTER THE NUMBER OF YOUR POSE (e.g., 1)")
-    print("---------------------------------------\n")
-
-    choice = input("Enter number here: ")
-
-    if not choice.isdigit():
-        print("❌ Invalid input. Please enter a number like 1 or 2.")
-        exit()
-
-    choice = int(choice)
-
-    if 1 <= choice <= len(POSES):
-        collect_for_pose(POSES[choice - 1])
-    else:
-        print("❌ Invalid selection.")
-#Sandeep Sawhney & Ibrahim Quaizar
-#11/30/2025
+cap.release()
+cv2.destroyAllWindows()
