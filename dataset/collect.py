@@ -30,8 +30,8 @@ NODE_SUFFIX = "_nodes.jpg"
 MAX_PHOTOS = 300
 
 # MICRO-NODES SETTINGS
-SMALL_RADIUS = 1        # tiny dots
-SMALL_THICKNESS = 1     # thin lines
+SMALL_RADIUS = 1
+SMALL_THICKNESS = 1
 
 # -------------------------------------------------------
 # MEDIAPIPE SETUP
@@ -44,13 +44,13 @@ mp_hands = mp.solutions.hands
 
 # Ultra-small landmark specs
 small_landmark_style = mp_draw.DrawingSpec(
-    color=(0, 255, 0),          # bright green
+    color=(0, 255, 0),
     thickness=SMALL_THICKNESS,
     circle_radius=SMALL_RADIUS
 )
 
 small_connection_style = mp_draw.DrawingSpec(
-    color=(0, 200, 200),        # cyan lines
+    color=(0, 200, 200),
     thickness=SMALL_THICKNESS,
     circle_radius=SMALL_RADIUS
 )
@@ -140,7 +140,9 @@ pose = choose_pose()
 banner()
 print(Fore.MAGENTA + f">>> Collecting: {pose}" + Style.RESET_ALL)
 
-output_folder = pose
+# Save pose folders in SAME directory as collect.py
+script_dir = os.path.dirname(os.path.abspath(__file__))
+output_folder = os.path.join(script_dir, pose)
 os.makedirs(output_folder, exist_ok=True)
 
 cap = cv2.VideoCapture(0)
@@ -165,8 +167,6 @@ while True:
     # ----------------------------
     # SAFE MICRO-NODE DRAWING
     # ----------------------------
-
-    # POSE
     if results.pose_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
@@ -176,7 +176,6 @@ while True:
             connection_drawing_spec=small_connection_style
         )
 
-    # FACE
     if results.face_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
@@ -186,7 +185,6 @@ while True:
             connection_drawing_spec=small_connection_style
         )
 
-    # LEFT HAND
     if results.left_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
@@ -196,7 +194,6 @@ while True:
             connection_drawing_spec=small_connection_style
         )
 
-    # RIGHT HAND
     if results.right_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
