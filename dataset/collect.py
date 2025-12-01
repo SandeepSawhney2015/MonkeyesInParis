@@ -2,14 +2,14 @@
 # SILENCE ALL TENSORFLOW / MEDIAPIPE / ABSL WARNINGS
 # ============================================================
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # hide TF warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import logging
-logging.getLogger('mediapipe').setLevel(logging.ERROR)  # hide MP logs
+logging.getLogger('mediapipe').setLevel(logging.ERROR)
 
 from absl import logging as absl_logging
-absl_logging.set_verbosity(absl_logging.ERROR)           # hide Abseil logs
-absl_logging.set_stderrthreshold(absl_logging.FATAL)     # block STDERR spam
+absl_logging.set_verbosity(absl_logging.ERROR)
+absl_logging.set_stderrthreshold(absl_logging.FATAL)
 
 # ============================================================
 # IMPORTS
@@ -20,18 +20,18 @@ import json
 from colorama import Fore, Style, init
 init()
 
-# -------------------------------------------------------
+# ============================================================
 # CONFIG
-# -------------------------------------------------------
+# ============================================================
 POSE_NAMES = ["pose1", "pose2", "pose3", "pose4", "pose5", "pose6"]
 
 RAW_SUFFIX = "_raw.jpg"
 NODE_SUFFIX = "_nodes.jpg"
-MAX_PHOTOS = 300
+SESSION_LIMIT = 300   # max captures per session
 
-# -------------------------------------------------------
-# MEDIAPIPE SETUP
-# -------------------------------------------------------
+# ============================================================
+# MEDIAPIPE INITIALIZATION
+# ============================================================
 mp_draw = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 mp_face = mp.solutions.face_mesh
@@ -41,43 +41,43 @@ mp_hands = mp.solutions.hands
 # CUSTOM NODE STYLES PER BODY PART
 # ============================================================
 
-# FACE: tiny red dots, tiny white lines
+# FACE — tiny red dots, thin white lines
 face_landmark_style = mp_draw.DrawingSpec(
-    color=(0, 0, 255),  # red
+    color=(0, 0, 255),
     thickness=1,
     circle_radius=1
 )
 face_connection_style = mp_draw.DrawingSpec(
-    color=(255, 255, 255),  # white
+    color=(255, 255, 255),
     thickness=1,
     circle_radius=1
 )
 
-# HANDS: small blue dots + thin white lines
+# HANDS — blue dots, thin white joints
 hand_landmark_style = mp_draw.DrawingSpec(
-    color=(255, 0, 0),  # blue
+    color=(255, 0, 0),
     thickness=2,
     circle_radius=2
 )
 hand_connection_style = mp_draw.DrawingSpec(
-    color=(255, 255, 255),  # white
+    color=(255, 255, 255),
     thickness=1,
     circle_radius=2
 )
 
-# POSE BODY: medium green dots + thicker white lines
+# POSE BODY — green dots, white bones
 pose_landmark_style = mp_draw.DrawingSpec(
-    color=(0, 255, 0),  # green
+    color=(0, 255, 0),
     thickness=3,
     circle_radius=3
 )
 pose_connection_style = mp_draw.DrawingSpec(
-    color=(255, 255, 255),  # white
+    color=(255, 255, 255),
     thickness=2,
     circle_radius=3
 )
 
-# Initialize Mediapipe Holistic
+# Holistic Model
 holistic = mp.solutions.holistic.Holistic(
     static_image_mode=False,
     model_complexity=2,
@@ -85,9 +85,9 @@ holistic = mp.solutions.holistic.Holistic(
     refine_face_landmarks=True
 )
 
-# -------------------------------------------------------
+# ============================================================
 # TERMINAL UI
-# -------------------------------------------------------
+# ============================================================
 def banner():
     os.system("cls" if os.name == "nt" else "clear")
     print(Fore.CYAN + "═══════════════════════════════════════════════")
@@ -104,9 +104,9 @@ def choose_pose():
     choice = int(input(Fore.CYAN + "Enter pose number (1–6): " + Style.RESET_ALL))
     return POSE_NAMES[choice - 1]
 
-# -------------------------------------------------------
-# SAVE JSON
-# -------------------------------------------------------
+# ============================================================
+# JSON SAVING
+# ============================================================
 def save_json(filepath, results):
     data = {
         "pose_landmarks": [],
@@ -134,9 +134,9 @@ def save_json(filepath, results):
     with open(filepath, "w") as f:
         json.dump(data, f, indent=2)
 
-# -------------------------------------------------------
-# FILE COUNTER
-# -------------------------------------------------------
+# ============================================================
+# GET NEXT GLOBAL INDEX
+# ============================================================
 def get_next_index(folder, pose):
     if not os.path.exists(folder):
         return 1
@@ -148,37 +148,36 @@ def get_next_index(folder, pose):
     nums = []
     for name in files:
         try:
-            num = int(name.split("_")[1].split(".")[0])
-            nums.append(num)
+            nums.append(int(name.split("_")[1].split(".")[0]))
         except:
             pass
 
     return max(nums) + 1 if nums else 1
 
-# -------------------------------------------------------
-# MAIN
-# -------------------------------------------------------
+# ============================================================
+# MAIN PROGRAM
+# ============================================================
 banner()
 pose = choose_pose()
 banner()
 print(Fore.MAGENTA + f">>> Collecting: {pose}" + Style.RESET_ALL)
 
-# Save pose folders in SAME directory as collect.py
 script_dir = os.path.dirname(os.path.abspath(__file__))
 output_folder = os.path.join(script_dir, pose)
 os.makedirs(output_folder, exist_ok=True)
 
 cap = cv2.VideoCapture(0)
 if not cap.isOpened():
-    print(Fore.RED + "ERROR: Cannot open webcam" + Style.RESET_ALL)
+    print(Fore.RED + "ERROR: Cannot open webcam." + Style.RESET_ALL)
     exit()
 
 index = get_next_index(output_folder, pose)
+session_count = 0
 
 while True:
     ret, frame = cap.read()
     if not ret:
-        print(Fore.RED + "Failed to read frame." + Style.RESET_ALL)
+        print(Fore.RED + "ERROR: Camera read failed." + Style.RESET_ALL)
         break
 
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -187,66 +186,70 @@ while True:
     raw_frame = frame.copy()
     nodes_frame = frame.copy()
 
-    # ---------------------------------------------------
-    # DRAW LANDMARKS WITH CUSTOM BODY-PART STYLING
-    # ---------------------------------------------------
+    # ======================================================
+    # DRAW LANDMARKS ON nodes_frame ONLY
+    # ======================================================
 
-    # POSE (green dots, white lines)
     if results.pose_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.pose_landmarks,
             mp_pose.POSE_CONNECTIONS,
-            landmark_drawing_spec=pose_landmark_style,
-            connection_drawing_spec=pose_connection_style
+            pose_landmark_style,
+            pose_connection_style
         )
 
-    # FACE (tiny red dots)
     if results.face_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.face_landmarks,
             mp_face.FACEMESH_TESSELATION,
-            landmark_drawing_spec=face_landmark_style,
-            connection_drawing_spec=face_connection_style
+            face_landmark_style,
+            face_connection_style
         )
 
-    # HANDS (blue dots, white lines)
     if results.left_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.left_hand_landmarks,
             mp_hands.HAND_CONNECTIONS,
-            landmark_drawing_spec=hand_landmark_style,
-            connection_drawing_spec=hand_connection_style
+            hand_landmark_style,
+            hand_connection_style
         )
-
     if results.right_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.right_hand_landmarks,
             mp_hands.HAND_CONNECTIONS,
-            landmark_drawing_spec=hand_landmark_style,
-            connection_drawing_spec=hand_connection_style
+            hand_landmark_style,
+            hand_connection_style
         )
 
-    # ---------------------------------------------------
-    # UI OVERLAY
-    # ---------------------------------------------------
-    cv2.putText(nodes_frame, f"POSE: {pose}", (20, 40),
+    # ======================================================
+    # DISPLAY FRAME (UI ONLY, NOT SAVED)
+    # ======================================================
+    display_frame = nodes_frame.copy()
+
+    cv2.putText(display_frame, f"POSE: {pose}", (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
 
-    cv2.putText(nodes_frame, f"COUNT: {index-1}/{MAX_PHOTOS}", (20, 80),
+    cv2.putText(display_frame, f"SESSION: {session_count}/{SESSION_LIMIT}", (20, 80),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 0), 2)
 
-    cv2.imshow("MonkeysInParis Collector", nodes_frame)
+    cv2.imshow("MonkeysInParis Collector", display_frame)
 
     key = cv2.waitKey(1) & 0xFF
 
-    # SPACE = capture
+    # ESC = EXIT
+    if key == 27:
+        print(Fore.RED + "\nESC pressed. Closing..." + Style.RESET_ALL)
+        break
+
+    # SPACE = CAPTURE
     if key == ord(' '):
-        if index > MAX_PHOTOS:
-            print(Fore.GREEN + f"\nReached {MAX_PHOTOS} images. Auto-closing..." + Style.RESET_ALL)
+
+        if session_count >= SESSION_LIMIT:
+            print(Fore.GREEN + f"\nSession limit {SESSION_LIMIT} reached. Auto-closing..." + Style.RESET_ALL)
             break
 
         raw_path = os.path.join(output_folder, f"{pose}_{index:03d}{RAW_SUFFIX}")
@@ -254,20 +257,17 @@ while True:
         json_path = os.path.join(output_folder, f"{pose}_{index:03d}.json")
 
         cv2.imwrite(raw_path, raw_frame)
-        cv2.imwrite(nodes_path, nodes_frame)
+        cv2.imwrite(nodes_path, nodes_frame)   # CLEAN NODES IMAGE
         save_json(json_path, results)
 
         print(Fore.GREEN + f"Saved {pose}_{index:03d}" + Style.RESET_ALL)
+
         index += 1
+        session_count += 1
 
-        if index > MAX_PHOTOS:
-            print(Fore.GREEN + f"\nReached {MAX_PHOTOS} images. Auto-closing..." + Style.RESET_ALL)
+        if session_count >= SESSION_LIMIT:
+            print(Fore.GREEN + f"\nSession limit reached. Auto-closing..." + Style.RESET_ALL)
             break
-
-    # ESC = quit
-    if key == 27:
-        print(Fore.RED + "\nESC pressed. Closing program..." + Style.RESET_ALL)
-        break
 
 cap.release()
 cv2.destroyAllWindows()
