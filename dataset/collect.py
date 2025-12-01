@@ -1,13 +1,22 @@
+# ============================================================
+# SILENCE ALL TENSORFLOW / MEDIAPIPE / ABSL WARNINGS
+# ============================================================
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # remove TF warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # hide TF warnings
 
 import logging
-logging.getLogger('mediapipe').setLevel(logging.ERROR)  # remove MP warnings
+logging.getLogger('mediapipe').setLevel(logging.ERROR)  # hide MP logs
 
+from absl import logging as absl_logging
+absl_logging.set_verbosity(absl_logging.ERROR)           # hide Abseil logs
+absl_logging.set_stderrthreshold(absl_logging.FATAL)     # block STDERR spam
+
+# ============================================================
+# IMPORTS
+# ============================================================
 import cv2
 import mediapipe as mp
 import json
-import os
 from colorama import Fore, Style, init
 init()
 
@@ -20,8 +29,9 @@ RAW_SUFFIX = "_raw.jpg"
 NODE_SUFFIX = "_nodes.jpg"
 MAX_PHOTOS = 300
 
-NODE_RADIUS = 1
-NODE_THICKNESS = -1
+# MICRO-NODES SETTINGS
+SMALL_RADIUS = 1        # tiny dots
+SMALL_THICKNESS = 1     # thin lines
 
 # -------------------------------------------------------
 # MEDIAPIPE SETUP
@@ -31,6 +41,19 @@ mp_draw = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 mp_face = mp.solutions.face_mesh
 mp_hands = mp.solutions.hands
+
+# Ultra-small landmark specs
+small_landmark_style = mp_draw.DrawingSpec(
+    color=(0, 255, 0),          # bright green
+    thickness=SMALL_THICKNESS,
+    circle_radius=SMALL_RADIUS
+)
+
+small_connection_style = mp_draw.DrawingSpec(
+    color=(0, 200, 200),        # cyan lines
+    thickness=SMALL_THICKNESS,
+    circle_radius=SMALL_RADIUS
+)
 
 holistic = mp.solutions.holistic.Holistic(
     static_image_mode=False,
@@ -92,9 +115,13 @@ def save_json(filepath, results):
 # FILE COUNTER
 # -------------------------------------------------------
 def get_next_index(folder, pose):
+    if not os.path.exists(folder):
+        return 1
+
     files = [f for f in os.listdir(folder) if f.startswith(pose)]
     if not files:
         return 1
+
     nums = []
     for name in files:
         try:
@@ -102,6 +129,7 @@ def get_next_index(folder, pose):
             nums.append(num)
         except:
             pass
+
     return max(nums) + 1 if nums else 1
 
 # -------------------------------------------------------
@@ -135,42 +163,50 @@ while True:
     nodes_frame = frame.copy()
 
     # ----------------------------
-    # SAFE DRAWING (No KeyErrors)
+    # SAFE MICRO-NODE DRAWING
     # ----------------------------
 
-    # Pose
+    # POSE
     if results.pose_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.pose_landmarks,
-            mp_pose.POSE_CONNECTIONS
+            mp_pose.POSE_CONNECTIONS,
+            landmark_drawing_spec=small_landmark_style,
+            connection_drawing_spec=small_connection_style
         )
 
-    # Face
+    # FACE
     if results.face_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.face_landmarks,
-            mp_face.FACEMESH_TESSELATION
+            mp_face.FACEMESH_TESSELATION,
+            landmark_drawing_spec=small_landmark_style,
+            connection_drawing_spec=small_connection_style
         )
 
-    # Left hand
+    # LEFT HAND
     if results.left_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.left_hand_landmarks,
-            mp_hands.HAND_CONNECTIONS
+            mp_hands.HAND_CONNECTIONS,
+            landmark_drawing_spec=small_landmark_style,
+            connection_drawing_spec=small_connection_style
         )
 
-    # Right hand
+    # RIGHT HAND
     if results.right_hand_landmarks:
         mp_draw.draw_landmarks(
             nodes_frame,
             results.right_hand_landmarks,
-            mp_hands.HAND_CONNECTIONS
+            mp_hands.HAND_CONNECTIONS,
+            landmark_drawing_spec=small_landmark_style,
+            connection_drawing_spec=small_connection_style
         )
 
-    # UI overlay (not saved to raw)
+    # UI overlay
     cv2.putText(nodes_frame, f"POSE: {pose}", (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
 
