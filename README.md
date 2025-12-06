@@ -1,4 +1,4 @@
-# MonkeyesInParis
+# Monkey Meme Classifier
 
 Face recognition model for the Monkey Meme
 
