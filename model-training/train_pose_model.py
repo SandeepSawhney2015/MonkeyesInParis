@@ -4,6 +4,8 @@ import random
 import time
 from pathlib import Path
 
+print("Hello World")
+
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
