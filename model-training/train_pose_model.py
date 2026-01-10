@@ -4,8 +4,6 @@ import random
 import time
 from pathlib import Path
 
-#this is a test of github remote repositories
-
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
